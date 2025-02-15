@@ -1,0 +1,19 @@
+{
+	"improvementData": {
+		"secession": {
+			"cost": 0,
+			"improvementAbilities": [
+				"discrete"
+			],
+			"maxLevel": 0,
+			"idx": -1
+		}
+	},
+	"techData": {
+		"basic": {
+			"improvementUnlocks": [
+				"secession"
+			]
+		}
+    }
+}
