@@ -31,35 +31,60 @@ public static class Main
     {
         WorldCoordinates cityCoordinates = GameManager.GameState.Map.GetTile(coordinates).rulingCityCoordinates;
         int Id = GameManager.GameState.PlayerStates[^2].Id + 1;
-        PlayerState playerState = new()
+        if(GameManager.GameState.TryGetPlayer(GameManager.GameState.CurrentPlayer, out PlayerState currentPlayerState))
         {
-            Id = (byte)Id,
-            UserName = "Player " + Id,
-            AccountId = new Il2CppSystem.Nullable<Il2CppSystem.Guid>(Il2CppSystem.Guid.NewGuid()),
-            AutoPlay = true,
-            startTile = cityCoordinates,
-            hasChosenTribe = GameManager.LocalPlayer.tribe > TribeData.Type.None,
-            tribe = GameManager.LocalPlayer.tribe,
-            skinType = GameManager.LocalPlayer.skinType == SkinType.Default ? GameManager.GameState.Settings.GetSelectedSkin(GameManager.LocalPlayer.tribe) : GameManager.LocalPlayer.skinType,
-            handicap = 0,
-            currency = 0,
-            score = 0,
-            cities = 0,
-            kills = 0,
-            casualities = 0,
-            wipeOuts = 0,
-        };
-        GameManager.GameState.PlayerStates.Add(playerState);
-        foreach (PlayerState player in GameManager.GameState.PlayerStates)
-        {
-            modLogger?.LogInfo(player.AccountId.ToString());
-        }
-        foreach (TileData tile in GameManager.GameState.Map.tiles)
-        {
-            if (tile.rulingCityCoordinates == cityCoordinates)
+            PlayerState playerState = new()
             {
-                tile.owner = playerState.Id;
+                Id = (byte)Id,
+                UserName = "Player " + Id,
+                AccountId = new Il2CppSystem.Nullable<Il2CppSystem.Guid>(Il2CppSystem.Guid.NewGuid()),
+                AutoPlay = false,
+                startTile = cityCoordinates,
+                hasChosenTribe = currentPlayerState.tribe > TribeData.Type.None,
+                tribe = currentPlayerState.tribe,
+                skinType = currentPlayerState.skinType == SkinType.Default ? GameManager.GameState.Settings.GetSelectedSkin(GameManager.LocalPlayer.tribe) : GameManager.LocalPlayer.skinType,
+                handicap = 0,
+                currency = 0,
+                score = 0,
+                cities = 0,
+                kills = 0,
+                casualities = 0,
+                wipeOuts = 0,
+                unlockedTechCache = currentPlayerState.unlockedTechCache,
+                availableTech = currentPlayerState.availableTech,
+            };
+            GameManager.GameState.PlayerStates.Add(playerState);
+
+            PlayerData playerData = new PlayerData
+            {
+                type = PlayerData.Type.Player,
+                state = PlayerData.State.None,
+                knownTribe = false,
+                tribe = playerState.tribe,
+                tribeMix = playerState.tribeMix,
+                skinType = playerState.skinType,
+                profile = HotseatProfilesState.CreateRandomPlayerProfileState(GameManager.Client.playerData.Length, GameManager.GameState.Version, GameManager.GameState.Seed),
+                defaultName = "test"
+            };
+            List<PlayerData> playerDatasList = GameManager.Client.playerData.ToList();
+            playerDatasList.Add(playerData);
+            GameManager.Client.playerData = playerDatasList.ToArray();
+
+            List<ushort> lastSeenCommandsList = GameManager.Client.lastSeenCommands.ToList();
+            lastSeenCommandsList.Add(0);
+            GameManager.Client.lastSeenCommands = lastSeenCommandsList.ToArray();
+
+            foreach (TileData tile in GameManager.GameState.Map.tiles)
+            {
+                if (tile.rulingCityCoordinates == cityCoordinates)
+                {
+                    tile.owner = playerState.Id;
+                }
             }
+        }
+        else
+        {
+            modLogger?.LogWarning("Current player not found, aborting.");
         }
     }
 }
