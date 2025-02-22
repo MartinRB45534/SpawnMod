@@ -1,10 +1,6 @@
 ﻿using BepInEx.Logging;
 using HarmonyLib;
 using Polytopia.Data;
-using PolytopiaBackendBase.Game;
-using Il2CppSystem.Runtime.CompilerServices;
-using UnityEngine;
-using UnityEngine.EventSystems;
 
 namespace SpawnMod;
 public static class Main
@@ -15,9 +11,10 @@ public static class Main
         Harmony.CreateAndPatchAll(typeof(Main));
         modLogger = logger;
     }
+
     [HarmonyPrefix]
     [HarmonyPatch(typeof(BuildAction), nameof(BuildAction.Execute))]
-    public static bool BuildAction_Execute_Prefix(BuildAction __instance)
+    private static bool BuildAction_Execute_Prefix(BuildAction __instance)
     {
         if (__instance.Type == EnumCache<ImprovementData.Type>.GetType("secession"))
         {
@@ -26,6 +23,14 @@ public static class Main
         }
         return true;
     }
+
+    [HarmonyPrefix]
+    [HarmonyPatch(typeof(PlayerExtensions), nameof(PlayerExtensions.IsAlive), typeof(PlayerState),  typeof(GameState),  typeof(GameRules.DeathCondition))]
+	private static bool PlayerExtensions_IsAlive(ref bool __result, PlayerState player, GameState gameState, GameRules.DeathCondition condition)
+	{
+        __result = true;
+        return false;
+	}
 
     private static void SpawnPlayer(WorldCoordinates coordinates)
     {
@@ -55,6 +60,22 @@ public static class Main
             };
             GameManager.GameState.PlayerStates.Add(playerState);
 
+            PlayerProfileState playerProfileState = new()
+            {
+                id = playerState.AccountId.value,
+                name = playerState.UserName,
+                avatarState = AvatarExtensions.CreateRandomState(VersionManager.AvatarVersion),
+                numGames = 0,
+                numMultiplayerGames = 0,
+                numFriends = 0,
+                gameVersion = VersionManager.GameVersion,
+                multiplayerRating = 1000,
+                platform = PolytopiaBackendBase.Common.Platform.Steam,
+                victories = new Il2CppSystem.Collections.Generic.Dictionary<Il2CppSystem.Guid, int>(),
+                defeats = new Il2CppSystem.Collections.Generic.Dictionary<Il2CppSystem.Guid, int>(),
+            };
+            GameManager.instance.hotseatProfilesState.players.Add(playerProfileState);
+
             PlayerData playerData = new PlayerData
             {
                 type = PlayerData.Type.Player,
@@ -63,8 +84,8 @@ public static class Main
                 tribe = playerState.tribe,
                 tribeMix = playerState.tribeMix,
                 skinType = playerState.skinType,
-                profile = HotseatProfilesState.CreateRandomPlayerProfileState(GameManager.Client.playerData.Length, GameManager.GameState.Version, GameManager.GameState.Seed),
-                defaultName = "test"
+                profile = playerProfileState,
+                defaultName = playerState.UserName
             };
             List<PlayerData> playerDatasList = GameManager.Client.playerData.ToList();
             playerDatasList.Add(playerData);
@@ -74,6 +95,11 @@ public static class Main
             lastSeenCommandsList.Add(0);
             GameManager.Client.lastSeenCommands = lastSeenCommandsList.ToArray();
 
+            for (int i = 0; i < GameManager.GameState.Map.Tiles.Length; i++)
+            {
+                GameManager.GameState.Map.Tiles[i].SetExplored(playerState.Id, true);
+            }
+            MapRenderer.Current.Refresh(false);
             foreach (TileData tile in GameManager.GameState.Map.tiles)
             {
                 if (tile.rulingCityCoordinates == cityCoordinates)
